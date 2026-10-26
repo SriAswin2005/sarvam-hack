@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let state = { tasks: [], notes: [], emails: [], drafts: [], messages: [], accounts: [] };
 let busy = false, recorder, recordTimer, recordingSeconds = 0;
+let recordingUrl;
 let toastTimer;
 const labels = { today: 'My day', inbox: 'Inbox', notes: 'Notebook', drafts: 'Email drafts', settings: 'Connections & settings' };
 function toast(message, error = false) {
@@ -52,7 +53,7 @@ function setBusy(value) {
   else $('thinking')?.remove();
 }
 async function send(message) {
-  if (busy || !message.trim()) return;
+  if (busy || recorder?.state === 'recording' || $('micLabel').textContent === 'Transcribing…' || !message.trim()) return;
   showView('today'); $('message').value = ''; setBusy(true);
   const preview = document.createElement('div'); preview.className = 'bubble user'; preview.textContent = message; $('thinking').before(preview);
   $('conversation').scrollTop = $('conversation').scrollHeight;
@@ -147,16 +148,31 @@ $('micButton').onclick = async () => {
       clearInterval(recordTimer); stream.getTracks().forEach(track => track.stop());
       $('micButton').classList.remove('recording'); $('micLabel').textContent = 'Transcribing…'; $('micButton').disabled = true; $('recordTime').textContent = '';
       $('micButton').setAttribute('aria-label', 'Start recording');
+      $('sendButton').disabled = true;
+      const uploadType = (recorder.mimeType || chunks[0]?.type || 'audio/webm').split(';')[0].trim();
+      const recording = new Blob(chunks, { type: uploadType });
+      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+      recordingUrl = URL.createObjectURL(recording);
+      $('recordingPlayback').src = recordingUrl;
+      $('voicePreview').classList.remove('hidden');
+      $('transcriptText').textContent = '';
+      $('voiceStatus').textContent = 'Transcribing your recording…';
+      $('voicePreview').scrollIntoView({ behavior: 'smooth', block: 'center' });
       try {
         // Sarvam accepts the container MIME type without MediaRecorder's codec suffix.
-        const uploadType = (recorder.mimeType || chunks[0]?.type || 'audio/webm').split(';')[0].trim();
-        const result = await api(`/api/transcribe?language=${encodeURIComponent($('language').value)}`, new Blob(chunks, { type: uploadType }), uploadType);
-        $('message').value = [$('message').value, result.transcript].filter(Boolean).join(' ');
-        $('message').focus(); toast('Your words, ready to review. Press ↑ to send.');
-      } catch (error) { toast(error.message, true); }
-      finally { $('micButton').disabled = busy; $('micLabel').textContent = 'Speak'; }
+        const result = await api(`/api/transcribe?language=${encodeURIComponent($('language').value)}`, recording, uploadType);
+        const transcript = typeof result.transcript === 'string' ? result.transcript.trim() : '';
+        if (!transcript) throw new Error('No speech was detected. Play back the recording to check your microphone, then try again.');
+        $('message').value = [$('message').value, transcript].filter(Boolean).join(' ');
+        $('transcriptText').textContent = transcript;
+        $('voiceStatus').textContent = 'Transcript ready. Edit the message below, then press ↑ to send.';
+        $('message').focus({ preventScroll: true });
+        $('chatForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        toast('Transcript is shown above and in the message box.');
+      } catch (error) { $('voiceStatus').textContent = error.message; toast(error.message, true); }
+      finally { $('micButton').disabled = busy; $('sendButton').disabled = busy; $('micLabel').textContent = 'Speak'; }
     };
-    recorder.start(); $('micButton').classList.add('recording'); $('micLabel').textContent = 'Stop'; $('micButton').setAttribute('aria-label', 'Stop recording'); $('recordTime').textContent = '0:00';
+    recorder.start(); $('sendButton').disabled = true; $('micButton').classList.add('recording'); $('micLabel').textContent = 'Stop'; $('micButton').setAttribute('aria-label', 'Stop recording'); $('recordTime').textContent = '0:00';
     recordTimer = setInterval(() => {
       recordingSeconds++; $('recordTime').textContent = `0:${String(recordingSeconds).padStart(2, '0')}`;
       if (recordingSeconds >= 28 && recorder.state === 'recording') recorder.stop();

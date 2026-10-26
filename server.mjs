@@ -152,7 +152,9 @@ const server = http.createServer(async (req, res) => {
       const file = new File([audio], `recording.${extension}`, { type });
       const language = ['te-IN', 'en-IN'].includes(url.searchParams.get('language')) ? url.searchParams.get('language') : 'unknown';
       const result = await client.speechToText.transcribe({ file, model: 'saaras:v4', mode: 'transcribe', language_code: language });
-      return json(res, 200, { transcript: result.transcript });
+      const transcript = typeof result.transcript === 'string' ? result.transcript.trim() : '';
+      if (!transcript) throw new Error('No speech was detected in this recording. Play it back to check your microphone, select Telugu or English, and record a full sentence again.');
+      return json(res, 200, { transcript });
     }
     if (req.method === 'POST' && url.pathname === '/api/tasks') {
       const input = await requestJson(req);
