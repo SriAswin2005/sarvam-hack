@@ -1,0 +1,15 @@
+{
+  "name": "sarvam-hack",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Saha: a Telugu and English personal assistant powered by Sarvam AI",
+  "scripts": {
+    "start": "node --env-file=.env server.mjs",
+    "first-call": "node --env-file=.env first-call.mjs"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "sarvamai": "^1.1.12"
+  }
+}

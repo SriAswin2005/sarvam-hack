@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#163e38">
+  <title>Saha — A little clarity for your day</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">s<span>✳</span></span><span>saha<span class="brand-dot">.</span></span></a>
+    <div class="workspace"><span class="avatar">Y</span><div>Your workspace<small>Personal assistant</small></div><span class="workspace-dot"></span></div>
+    <div class="nav-label">YOUR EVERYDAY, SORTED</div>
+    <nav aria-label="Main navigation">
+      <button class="nav active" data-view="today"><span>◷</span> My day <span class="nav-count" id="navTaskCount">0</span></button>
+      <button class="nav" data-view="inbox"><span>▱</span> Inbox <span class="nav-count" id="navMailCount">0</span></button>
+      <button class="nav" data-view="notes"><span>▤</span> Notebook</button>
+      <button class="nav" data-view="drafts"><span>↗</span> Email drafts</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="language-card"><span>అ</span><div>In your own words.<small>Telugu, English & more.</small></div></div>
+      <button class="nav" data-view="settings"><span>⚙</span> Connections & settings</button>
+      <div class="powered"><span class="status-dot"></span> Powered by Sarvam AI</div>
+    </div>
+  </aside>
+  <main>
+    <header class="topbar"><div><span class="breadcrumb">YOUR SPACE</span><span class="breadcrumb-divider">/</span><span id="pageLabel">My day</span></div><div class="topbar-right"><span id="dateLabel"></span><span class="local-label"><span class="status-dot"></span> Local workspace</span></div></header>
+    <section class="view" id="view-today">
+      <div class="greeting-row"><div><p class="eyebrow" id="greeting">A FRESH START</p><h1>A little clarity<br>for your <em>day.</em></h1><p class="intro">Big plans, small reminders. Let’s make room for what matters.</p></div><div class="day-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="sun">✳</div><span class="art-note">one thing<br>at a time.</span><span class="art-spark">✧</span></div></div>
+      <div class="stats"><div><span class="stat-icon sage">✓</span><div><strong id="taskCount">0</strong><span>tasks to focus on</span></div></div><div><span class="stat-icon peach">▱</span><div><strong id="mailCount">0</strong><span>emails in your space</span></div></div><div><span class="stat-icon lavender">▤</span><div><strong id="noteCount">0</strong><span>ideas tucked away</span></div></div></div>
+      <div class="dashboard-grid">
+        <section class="assistant-card">
+          <div class="card-heading"><div class="assistant-title"><span class="mini-mark">✳</span><div>Your thinking partner<small>Speak freely. I’m listening.</small></div></div><span class="pill">SARVAM AI</span></div>
+          <div id="conversation" class="conversation" aria-live="polite"></div>
+          <div class="starter-area" id="starters"><p>A LITTLE NUDGE TO GET STARTED</p><div class="starter-buttons"><button data-prompt="Plan my day based on my inbox and existing tasks. Add actionable tasks and explain the priorities.">✧ Plan my day</button><button data-prompt="Help me draft an email. Ask me who it is for and what I want to say.">↗ Draft an email</button><button data-prompt="I want to save a note. Ask me what to remember.">▤ Remember something</button></div></div>
+          <form id="chatForm" class="composer"><textarea id="message" rows="2" maxlength="6000" placeholder="ఏం చేయాలి? Tell me what’s on your mind…" aria-label="Message Saha"></textarea><div class="composer-bottom"><div class="voice-controls"><button type="button" class="mic-button" id="micButton" aria-label="Start recording" title="Record up to 28 seconds">♩ <span id="micLabel">Speak</span></button><select id="language" aria-label="Speech language"><option value="unknown">Auto language</option><option value="te-IN">తెలుగు</option><option value="en-IN">English</option></select><span id="recordTime"></span></div><button type="submit" class="send-button" id="sendButton" aria-label="Send message">↑</button></div></form>
+          <p class="composer-hint">Voice becomes text for you to review. Enter to send · Shift + Enter for a new line.</p>
+        </section>
+        <aside class="right-column">
+          <section class="focus-card"><div class="section-heading"><h2>On your radar</h2><button class="text-button" id="addTaskButton">+ Add</button></div><p class="section-subtitle">A little progress goes a long way.</p><div id="tasksList"></div><div class="focus-footer"><span class="tiny-spark">✦</span><span id="focusFooter">Your day is yours to shape.</span></div></section>
+          <section class="quick-note-card"><div class="section-heading"><h2>A thought worth keeping</h2><span>▤</span></div><textarea id="quickNote" rows="3" maxlength="10000" placeholder="Catch it before it slips away…" aria-label="Quick note"></textarea><div class="note-bottom"><span>Just for you.</span><button class="text-button" id="saveQuickNote">Save note ↗</button></div></section>
+          <div class="quiet-caption">A calmer day starts with a clear mind. <span>✳</span></div>
+        </aside>
+      </div>
+    </section>
+    <section class="view hidden" id="view-inbox"><div class="page-heading"><div><p class="eyebrow">FROM INBOX TO ACTION</p><h1>Your inbox, <em>unpacked.</em></h1><p class="intro">Bring your personal and college emails into one place.</p></div><button class="primary" id="syncButton">↻ Sync inboxes</button></div><div class="info-banner">Email content is shared with Sarvam when you ask for a plan. Sample emails are clearly labeled.</div><div class="toolbar"><button class="primary" id="planInbox">✧ Make a plan from these emails</button><button class="secondary" id="sampleButton">Try sample inbox</button><button class="text-button" id="clearSamples">Remove samples</button></div><div id="inboxList" class="mail-grid"></div></section>
+    <section class="view hidden" id="view-notes"><div class="page-heading"><div><p class="eyebrow">GIVE YOUR THOUGHTS A HOME</p><h1>Your little <em>notebook.</em></h1><p class="intro">Quick thoughts, big ideas, and everything in between.</p></div><button class="primary" id="newNoteButton">+ New note</button></div><div id="notesList" class="notes-grid"></div></section>
+    <section class="view hidden" id="view-drafts"><div class="page-heading"><div><p class="eyebrow">THE RIGHT WORDS, A LITTLE EASIER</p><h1>Ready when <em>you are.</em></h1><p class="intro">Review a draft, open it in Gmail, and send it when you’re ready.</p></div><button class="primary" id="draftButton">↗ Draft an email</button></div><div id="draftsList" class="drafts-grid"></div></section>
+    <section class="view hidden" id="view-settings"><div class="page-heading"><div><p class="eyebrow">MAKE YOURSELF AT HOME</p><h1>A few <em>connections.</em></h1><p class="intro">Your assistant, connected to your everyday.</p></div></div><div class="settings-grid"><section class="settings-card"><span class="settings-icon">M</span><h2>Gmail & college email</h2><p>Connect each Google account separately. Saha reads your latest 10 inbox emails from the last 14 days per account.</p><div id="accountsList"></div><button class="primary" id="connectButton">+ Connect a Google account</button><p id="oauthStatus" class="helper"></p></section><section class="settings-card"><h2>Google setup · about 5 minutes</h2><ol><li>Open <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noreferrer">Google Cloud Console ↗</a> and enable Gmail API.</li><li>Configure Google Auth Platform → Branding and Audience. Add both email addresses as test users if External.</li><li>Create an OAuth client → Web application.</li><li>Add this redirect URI:<code>http://localhost:3000/auth/google/callback</code></li><li>Add <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> to <code>.env</code>, then restart the server.</li><li>Connect your personal account, then repeat for college. Your college admin may need to allow access.</li></ol></section><section class="settings-card"><h2>Built for your languages</h2><p><strong>Saaras v4</strong> transcribes Telugu, English, and other Indian languages. <strong>Sarvam 105B</strong> turns your words into useful plans, notes, and drafts.</p><p>Record up to 28 seconds at a time. You can edit the transcript before sending.</p><label class="check-label"><input type="checkbox" id="reminderToggle"> Show browser reminders while this app is open</label></section><section class="settings-card"><h2>Your space stays yours</h2><p>Tasks, notes, chat, emails, and Google tokens are saved in this computer’s ignored <code>.data</code> folder. API keys stay on the server in <code>.env</code>.</p><p>Only open this local app on a trusted computer. Closing it stops reminders. Gmail drafts open for you to review and send.</p><p class="helper">This prototype runs locally. A hosted, multi-user version needs authentication and encrypted token storage.</p></section></div></section>
+    <footer class="page-footer"><span>Made for the way you think.</span><span>saha · with Sarvam AI</span></footer>
+  </main>
+  <dialog id="taskDialog"><form id="taskForm"><div class="section-heading"><h2>One thing to do</h2><button type="button" class="text-button" data-close="taskDialog">✕</button></div><label>Task<input id="taskTitle" required maxlength="200" placeholder="What needs doing?"></label><label>Deadline <span class="helper">(your computer’s local time)</span><input type="datetime-local" id="taskDue"></label><button class="primary" type="submit">Add to my day</button></form></dialog>
+  <dialog id="noteDialog"><form id="noteForm"><div class="section-heading"><h2>A place for a thought</h2><button type="button" class="text-button" data-close="noteDialog">✕</button></div><input type="hidden" id="noteId"><label>Title<input id="noteTitle" maxlength="120" placeholder="Untitled note"></label><label>Note<textarea id="noteBody" rows="8" maxlength="10000" required placeholder="Start anywhere…"></textarea></label><button class="primary" type="submit">Save note</button></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
