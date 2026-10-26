@@ -79,7 +79,7 @@ Your college administrator may restrict third-party OAuth applications. HTML-onl
 - **Speech:** Sarvam Saaras v4, `/speech-to-text`.
 - **Assistant:** Sarvam 105B, chat completions with JSON output for task, note, and draft actions.
 - **Backend:** Node's built-in HTTP server; credentials never reach the browser.
-- **Frontend:** HTML, CSS, browser MediaRecorder, and plain JavaScript.
+- **Frontend:** HTML, CSS, browser AudioWorklet PCM capture, and plain JavaScript. Audio is encoded as mono 16 kHz WAV; a live input meter and microphone selector help verify capture.
 - **Storage:** ignored `.data/` directory. Disconnect removes the account's locally stored tokens and emails; revoke Google access separately in your Google Account if needed.
 - **Dependencies:** only `sarvamai` and its transitive dependencies. No frontend build step. Optional Google Fonts fall back to system fonts.
 

@@ -123,7 +123,7 @@ async function assistant(message) {
   await persist();
   return { reply: result.reply, added, state: publicState() };
 }
-const staticFiles = { '/': ['public/index.html', 'text/html'], '/app.js': ['public/app.js', 'text/javascript'], '/style.css': ['public/style.css', 'text/css'] };
+const staticFiles = { '/': ['public/index.html', 'text/html'], '/app.js': ['public/app.js', 'text/javascript'], '/voice.mjs': ['public/voice.mjs', 'text/javascript'], '/pcm-worklet.js': ['public/pcm-worklet.js', 'text/javascript'], '/style.css': ['public/style.css', 'text/css'] };
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');

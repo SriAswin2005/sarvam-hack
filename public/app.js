@@ -1,3 +1,4 @@
+import { WavRecorder } from './voice.mjs';
 const $ = id => document.getElementById(id);
 const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let state = { tasks: [], notes: [], emails: [], drafts: [], messages: [], accounts: [] };
@@ -136,21 +137,28 @@ $('syncButton').onclick = async () => {
 };
 $('micButton').onclick = async () => {
   if (recorder?.state === 'recording') { recorder.stop(); return; }
-  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { toast('Voice recording needs a modern browser on localhost or HTTPS.', true); return; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext || !window.AudioWorkletNode) { toast('Open http://localhost:3000 in Chrome or Edge for microphone recording.', true); return; }
+  $('micButton').disabled = true;
   let stream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mimeType = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
-    recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-    const chunks = []; recordingSeconds = 0;
-    recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-    recorder.onstop = async () => {
-      clearInterval(recordTimer); stream.getTracks().forEach(track => track.stop());
+    const selectedMic = $('microphone').value;
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, ...(selectedMic ? { deviceId: { exact: selectedMic } } : {}) } });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const currentDevice = stream.getAudioTracks()[0];
+    $('microphone').innerHTML = '<option value="">System default microphone</option>' + devices.filter(d => d.kind === 'audioinput').map((d, i) => `<option value="${escapeHtml(d.deviceId)}">${escapeHtml(d.label || `Microphone ${i + 1}`)}</option>`).join('');
+    $('microphone').value = selectedMic;
+    $('inputStatus').textContent = `Listening on ${currentDevice?.label || 'default microphone'}. Watch the input meter.`;
+    recorder = new WavRecorder(stream, (level) => {
+      $('inputLevel').value = Math.min(100, level * 700);
+      $('inputStatus').textContent = level > 0.002 ? '✓ Microphone signal detected' : 'Waiting for microphone signal…';
+    });
+    recordingSeconds = 0;
+    recorder.onstop = async (recording, diagnostics) => {
+      clearInterval(recordTimer); $('microphone').disabled = false;
+      $('inputLevel').value = 0;
       $('micButton').classList.remove('recording'); $('micLabel').textContent = 'Transcribing…'; $('micButton').disabled = true; $('recordTime').textContent = '';
       $('micButton').setAttribute('aria-label', 'Start recording');
       $('sendButton').disabled = true;
-      const uploadType = (recorder.mimeType || chunks[0]?.type || 'audio/webm').split(';')[0].trim();
-      const recording = new Blob(chunks, { type: uploadType });
       if (recordingUrl) URL.revokeObjectURL(recordingUrl);
       recordingUrl = URL.createObjectURL(recording);
       $('recordingPlayback').src = recordingUrl;
@@ -159,8 +167,9 @@ $('micButton').onclick = async () => {
       $('voiceStatus').textContent = 'Transcribing your recording…';
       $('voicePreview').scrollIntoView({ behavior: 'smooth', block: 'center' });
       try {
-        // Sarvam accepts the container MIME type without MediaRecorder's codec suffix.
-        const result = await api(`/api/transcribe?language=${encodeURIComponent($('language').value)}`, recording, uploadType);
+        if (!diagnostics.samples || diagnostics.peak < 0.000001) throw new Error('The browser received silence from this microphone. Choose another microphone below, or open http://localhost:3000 in Chrome or Edge.');
+        $('inputStatus').textContent = '✓ Audio captured as 16 kHz WAV';
+        const result = await api(`/api/transcribe?language=${encodeURIComponent($('language').value)}`, recording, 'audio/wav');
         const transcript = typeof result.transcript === 'string' ? result.transcript.trim() : '';
         if (!transcript) throw new Error('No speech was detected. Play back the recording to check your microphone, then try again.');
         $('message').value = [$('message').value, transcript].filter(Boolean).join(' ');
@@ -172,13 +181,17 @@ $('micButton').onclick = async () => {
       } catch (error) { $('voiceStatus').textContent = error.message; toast(error.message, true); }
       finally { $('micButton').disabled = busy; $('sendButton').disabled = busy; $('micLabel').textContent = 'Speak'; }
     };
-    recorder.start(); $('sendButton').disabled = true; $('micButton').classList.add('recording'); $('micLabel').textContent = 'Stop'; $('micButton').setAttribute('aria-label', 'Stop recording'); $('recordTime').textContent = '0:00';
+    await recorder.start(); $('micButton').disabled = false; $('microphone').disabled = true; $('sendButton').disabled = true; $('micButton').classList.add('recording'); $('micLabel').textContent = 'Stop'; $('micButton').setAttribute('aria-label', 'Stop recording'); $('recordTime').textContent = '0:00';
     recordTimer = setInterval(() => {
       recordingSeconds++; $('recordTime').textContent = `0:${String(recordingSeconds).padStart(2, '0')}`;
       if (recordingSeconds >= 28 && recorder.state === 'recording') recorder.stop();
     }, 1000);
     toast('Listening. Speak in Telugu, English, or mix both.');
-  } catch (error) { stream?.getTracks().forEach(track => track.stop()); toast('Microphone access was unavailable. Allow it in the browser and try again.', true); }
+  } catch (error) {
+    await recorder?.cancel(); stream?.getTracks().forEach(track => track.stop());
+    $('micButton').disabled = false; $('sendButton').disabled = busy; $('microphone').disabled = false;
+    toast(error.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow this site to use your microphone, or open the app in Chrome or Edge.' : error.message, true);
+  }
 };
 let remindersEnabled = false;
 const notified = new Set();
