@@ -38,13 +38,13 @@ Remind me to submit my college assignment tomorrow at five p.m.
 
 1. Open **Inbox → Try sample inbox**. These emails are fictional and explicitly labeled.
 2. Click **Make a plan from these emails**. Sarvam creates tasks from the email context.
-3. In **My day**, click **Speak**, talk in Telugu or English, and click **Stop**. Review the transcript, then send it.
+3. In **My day**, click **Speak**, talk in Telugu or English, and click **Stop**. Pause after speaking; the transcript sends automatically, Saha replies aloud, and Live conversation listens for your next turn. Use End conversation to stop.
 4. Try: `రేపు సాయంత్రం ఐదు గంటలకు అసైన్మెంట్ సమర్పించాలని గుర్తు చేయి.`
 5. Try: `Note that my project meeting is in room 204.`
 6. Try: `Draft an email to professor@example.com asking for one extra day to submit my assignment.`
 7. Open **Email drafts**, edit the generated text, then **Open in Gmail** to review and send from Gmail.
 
-Voice recordings stop at 28 seconds. Automatic language detection, Telugu, and English are selectable. Tasks, notes, drafts, inbox data, and conversation history persist locally. Notes can be edited and deleted. Tasks can be completed and removed. Optional browser reminders run while the app is open.
+Voice recordings stop after a pause in live mode, or at 28 seconds. Spoken replies use Sarvam Bulbul v3 in the current spoken language; display text can remain Romanized Telugu. Automatic language detection, Telugu, and English are selectable. Tasks, notes, drafts, inbox data, and conversation history persist locally. Notes can be edited and deleted. Tasks can be completed and removed. Optional browser reminders run while the app is open.
 
 ## Connect Gmail and college Gmail
 
@@ -69,7 +69,7 @@ Google sign-in is implemented but needs your own Google OAuth application creden
    BASE_URL=http://localhost:3000
    ```
 
-8. Restart `npm start`. Open **Connections & settings → Connect a Google account**. Connect your personal account, then repeat for your college account.
+8. Alternatively, enter the client ID and secret in **Connections & settings → Set up Gmail connection** to save them locally without restarting. Then click **Connect a Google account**. Connect your personal account, then repeat for your college account.
 9. Open **Inbox → Sync inboxes**. This fetches the newest 10 inbox emails per account from the last 14 days. Click **Make a plan** when ready.
 
 Your college administrator may restrict third-party OAuth applications. HTML-only emails use Gmail's preview text. Attachments, calendar events, and background inbox monitoring are outside this prototype's scope. The Gmail integration requires end-to-end verification after OAuth credentials are supplied.
@@ -77,7 +77,8 @@ Your college administrator may restrict third-party OAuth applications. HTML-onl
 ## How it works
 
 - **Speech:** Sarvam Saaras v4, `/speech-to-text`.
-- **Assistant:** Sarvam 105B, chat completions with JSON output for task, note, and draft actions.
+- **Assistant:** Sarvam 105B, chat completions with JSON output for task, note, and draft actions. Native-script speech text is generated separately from the display reply for correct pronunciation.
+- **Speech replies:** Sarvam Bulbul v3, `/text-to-speech`, WAV audio with browser playback. Microphone listening pauses during replies to prevent feedback. Autoplay restrictions may require tapping Play.
 - **Backend:** Node's built-in HTTP server; credentials never reach the browser.
 - **Frontend:** HTML, CSS, browser AudioWorklet PCM capture, and plain JavaScript. Audio is encoded as mono 16 kHz WAV; a live input meter and microphone selector help verify capture.
 - **Storage:** ignored `.data/` directory. Disconnect removes the account's locally stored tokens and emails; revoke Google access separately in your Google Account if needed.
@@ -97,3 +98,4 @@ Emails, notes, tasks, and the recent conversation are sent to Sarvam when you su
 - [Saaras speech models](https://docs.sarvam.ai/api/getting-started/models/saaras)
 - [Sarvam chat API](https://docs.sarvam.ai/api/api-guides-tutorials/chat-completion/overview)
 - [Gmail API](https://developers.google.com/workspace/gmail/api/guides)
+

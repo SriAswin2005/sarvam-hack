@@ -4,6 +4,8 @@ const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '
 let state = { tasks: [], notes: [], emails: [], drafts: [], messages: [], accounts: [] };
 let busy = false, recorder, recordTimer, recordingSeconds = 0;
 let recordingUrl;
+let transcribing = false, liveActive = false, speaking = false, finishPlayback;
+let voiceSession = 0, speechStarted = false, lastSpeechAt = 0, recordingStartedAt = 0;
 let toastTimer;
 const labels = { today: 'My day', inbox: 'Inbox', notes: 'Notebook', drafts: 'Email drafts', settings: 'Connections & settings' };
 function toast(message, error = false) {
@@ -42,28 +44,63 @@ function render() {
   $('notesList').innerHTML = state.notes.length ? state.notes.map(n => `<article class="note-card"><h2>${escapeHtml(n.title)}</h2><p>${escapeHtml(n.body)}</p><footer><span>${new Date(n.updated).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span><div><button class="text-button" data-edit-note="${escapeHtml(n.id)}">Edit</button> <button class="text-button" data-delete-note="${escapeHtml(n.id)}">Delete</button></div></footer></article>`).join('') : empty('Good thoughts deserve a home.', 'Write a note here, use the quick notepad, or tell Saha what to remember.');
   $('draftsList').innerHTML = state.drafts.length ? state.drafts.map(d => `<article class="draft-card"><span class="tag">LOCAL DRAFT · REVIEW BEFORE SENDING</span><h2>${escapeHtml(d.subject)}</h2><label>To<input data-draft-to="${escapeHtml(d.id)}" value="${escapeHtml(d.to)}" placeholder="recipient@example.com"></label><label>Subject<input data-draft-subject="${escapeHtml(d.id)}" value="${escapeHtml(d.subject)}"></label><label>Message<textarea data-draft-body="${escapeHtml(d.id)}">${escapeHtml(d.body)}</textarea></label><button class="primary" data-open-draft="${escapeHtml(d.id)}">Open in Gmail ↗</button></article>`).join('') : empty('The words will come.', 'Ask Saha to draft an email with the recipient and what you want to say.');
   $('accountsList').innerHTML = state.accounts.map(a => `<div class="account"><span>✓ ${escapeHtml(a.email)}</span><button class="text-button" data-disconnect="${escapeHtml(a.email)}">Disconnect</button></div>`).join('');
-  $('connectButton').disabled = !state.oauthReady;
-  $('oauthStatus').textContent = state.oauthReady ? 'Connect once for each inbox. Access is read only.' : 'Google credentials needed. Follow the setup steps beside this card, then restart.';
+  $('connectButton').disabled = false;
+  $('connectButton').textContent = state.oauthReady ? '+ Connect a Google account' : 'Set up Gmail connection';
+  $('oauthStatus').textContent = state.oauthReady ? 'Connect once for each inbox. Access is read only.' : 'Google credentials needed. Click Set up Gmail connection to save them locally. No restart needed.';
   $('syncButton').disabled = !state.accounts.length;
 }
 async function refresh() { state = await api('/api/state'); render(); }
 function setBusy(value) {
-  busy = value; $('sendButton').disabled = value; $('micButton').disabled = value;
+  busy = value; $('sendButton').disabled = value || transcribing; $('micButton').disabled = value || transcribing;
   document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value);
   if (value) { const item = document.createElement('div'); item.className = 'thinking'; item.id = 'thinking'; item.textContent = 'Saha is thinking things through…'; $('conversation').append(item); $('conversation').scrollTop = $('conversation').scrollHeight; }
   else $('thinking')?.remove();
 }
-async function send(message) {
-  if (busy || recorder?.state === 'recording' || $('micLabel').textContent === 'Transcribing…' || !message.trim()) return;
+function voiceStatus(text) { $('liveStatus').textContent = text; }
+function stopReplyAudio() { $('replyAudio').pause(); finishPlayback?.(); finishPlayback = null; }
+async function playSpeech(text, language) {
+  const session = voiceSession;
+  voiceStatus('Preparing spoken reply…');
+  const result = await api('/api/speak', { text, language });
+  if (session !== voiceSession) return;
+  $('replyPlayer').classList.remove('hidden');
+  speaking = true;
+  try {
+    for (const audio of result.audios) {
+      if (session !== voiceSession) break;
+      $('replyAudio').src = `data:audio/wav;base64,${audio}`;
+      voiceStatus(`Saha is speaking · ${result.language}`);
+      await new Promise((resolve, reject) => {
+        finishPlayback = resolve;
+        $('replyAudio').onended = resolve;
+        $('replyAudio').onerror = () => reject(new Error('Reply audio could not be played.'));
+        $('replyAudio').play().catch(() => reject(new Error('Tap Play on the reply audio to hear Saha. Your browser blocked automatic playback.')));
+      });
+    }
+  } finally { speaking = false; finishPlayback = null; }
+}
+async function send(message, options = {}) {
+  if (busy || transcribing || ['recording', 'stopping'].includes(recorder?.state) || !message.trim()) return;
+  const turnSession = voiceSession;
   showView('today'); $('message').value = ''; setBusy(true);
   const preview = document.createElement('div'); preview.className = 'bubble user'; preview.textContent = message; $('thinking').before(preview);
   $('conversation').scrollTop = $('conversation').scrollHeight;
   try {
-    const result = await api('/api/chat', { message }); state = result.state; render();
+    voiceStatus('Saha is thinking…');
+    const result = await api('/api/chat', { message, language: options.language }); state = result.state; render();
     const changes = Object.entries(result.added).filter(([, count]) => count).map(([key, count]) => `${count} ${key}`).join(', ');
     if (changes) toast(`Saved ${changes}.`);
-  } catch (error) { preview.remove(); $('message').value = message; toast(error.message, true); }
-  finally { setBusy(false); }
+    if ($('spokenReplies').checked && turnSession === voiceSession) {
+      try { await playSpeech(result.speechText || result.reply, result.language); }
+      catch (error) { liveActive = false; voiceStatus(error.message); toast(error.message, true); }
+    }
+    if (liveActive && options.voice) voiceStatus('Your turn. Listening again…');
+    else if (!speaking) voiceStatus('Ready when you are.');
+  } catch (error) { preview.remove(); $('message').value = message; liveActive = false; voiceStatus(error.message); toast(error.message, true); }
+  finally {
+    setBusy(false);
+    if (liveActive && options.voice && $('liveMode').checked) setTimeout(() => { if (liveActive && !busy) $('micButton').onclick(); }, 350);
+  }
 }
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
 document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => send(button.dataset.prompt)));
@@ -128,7 +165,27 @@ $('planInbox').onclick = () => {
   send('Plan my day from the emails in my inbox. Add concrete tasks with deadlines where stated, and explain the priorities.');
 };
 $('draftButton').onclick = () => { showView('today'); $('message').value = 'Draft an email to '; $('message').focus(); };
-$('connectButton').onclick = () => { window.location.href = '/auth/google'; };
+$('connectButton').onclick = () => {
+  if (state.oauthReady) window.location.href = '/auth/google';
+  else { $('googleSetupDialog').showModal(); $('googleClientId').focus(); }
+};
+$('googleSetupForm').onsubmit = async event => {
+  event.preventDefault(); $('saveGoogleConfig').disabled = true;
+  try {
+    state = await api('/api/config/google', { clientId: $('googleClientId').value, clientSecret: $('googleClientSecret').value });
+    $('googleClientSecret').value = ''; $('googleSetupDialog').close(); render(); toast('Google credentials saved locally. You can connect Gmail now.');
+  } catch (error) { toast(error.message, true); }
+  finally { $('saveGoogleConfig').disabled = false; }
+};
+$('endConversation').onclick = async () => {
+  liveActive = false; voiceSession++; clearInterval(recordTimer); stopReplyAudio();
+  if (recorder?.state === 'recording') await recorder.cancel();
+  $('micButton').classList.remove('recording'); $('micLabel').textContent = 'Speak'; $('recordTime').textContent = '';
+  $('microphone').disabled = false; $('inputLevel').value = 0;
+  $('micButton').disabled = busy || transcribing; $('sendButton').disabled = busy || transcribing;
+  voiceStatus('Conversation ended. Click Speak to start again.');
+};
+$('liveMode').onchange = () => { if (!$('liveMode').checked) liveActive = false; };
 $('syncButton').onclick = async () => {
   $('syncButton').disabled = true; $('syncButton').textContent = '↻ Bringing things together…';
   try { state = await api('/api/sync', {}); render(); toast(state.syncWarnings?.length ? state.syncWarnings.join(' ') : 'Inboxes refreshed.', Boolean(state.syncWarnings?.length)); }
@@ -136,11 +193,14 @@ $('syncButton').onclick = async () => {
   finally { $('syncButton').textContent = '↻ Sync inboxes'; $('syncButton').disabled = !state.accounts.length; }
 };
 $('micButton').onclick = async () => {
-  if (recorder?.state === 'recording') { recorder.stop(); return; }
+  if (recorder?.state === 'recording') { await recorder.stop(); return; }
+  if (busy || transcribing || recorder?.state === 'stopping') return;
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext || !window.AudioWorkletNode) { toast('Open http://localhost:3000 in Chrome or Edge for microphone recording.', true); return; }
   $('micButton').disabled = true;
   let stream;
   try {
+    stopReplyAudio();
+    liveActive = $('liveMode').checked;
     const selectedMic = $('microphone').value;
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, ...(selectedMic ? { deviceId: { exact: selectedMic } } : {}) } });
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -151,9 +211,15 @@ $('micButton').onclick = async () => {
     recorder = new WavRecorder(stream, (level) => {
       $('inputLevel').value = Math.min(100, level * 700);
       $('inputStatus').textContent = level > 0.002 ? '✓ Microphone signal detected' : 'Waiting for microphone signal…';
+      const now = Date.now();
+      if (level > 0.006) { speechStarted = true; lastSpeechAt = now; }
+      if (liveActive && speechStarted && now - lastSpeechAt > 1400 && now - recordingStartedAt > 1800 && recorder.state === 'recording') recorder.stop();
     });
-    recordingSeconds = 0;
+    recordingSeconds = 0; speechStarted = false; lastSpeechAt = 0; recordingStartedAt = Date.now();
     recorder.onstop = async (recording, diagnostics) => {
+      transcribing = true;
+      const session = voiceSession;
+      let transcriptToSend, transcriptLanguage;
       clearInterval(recordTimer); $('microphone').disabled = false;
       $('inputLevel').value = 0;
       $('micButton').classList.remove('recording'); $('micLabel').textContent = 'Transcribing…'; $('micButton').disabled = true; $('recordTime').textContent = '';
@@ -164,7 +230,7 @@ $('micButton').onclick = async () => {
       $('recordingPlayback').src = recordingUrl;
       $('voicePreview').classList.remove('hidden');
       $('transcriptText').textContent = '';
-      $('voiceStatus').textContent = 'Transcribing your recording…';
+      $('voiceStatus').textContent = 'Transcribing your recording…'; voiceStatus('Understanding your words…');
       $('voicePreview').scrollIntoView({ behavior: 'smooth', block: 'center' });
       try {
         if (!diagnostics.samples || diagnostics.peak < 0.000001) throw new Error('The browser received silence from this microphone. Choose another microphone below, or open http://localhost:3000 in Chrome or Edge.');
@@ -174,20 +240,22 @@ $('micButton').onclick = async () => {
         if (!transcript) throw new Error('No speech was detected. Play back the recording to check your microphone, then try again.');
         $('message').value = [$('message').value, transcript].filter(Boolean).join(' ');
         $('transcriptText').textContent = transcript;
-        $('voiceStatus').textContent = 'Transcript ready. Edit the message below, then press ↑ to send.';
+        $('voiceStatus').textContent = 'Sending your words to Saha…';
+        transcriptToSend = $('message').value; transcriptLanguage = result.language;
         $('message').focus({ preventScroll: true });
         $('chatForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        toast('Transcript is shown above and in the message box.');
-      } catch (error) { $('voiceStatus').textContent = error.message; toast(error.message, true); }
-      finally { $('micButton').disabled = busy; $('sendButton').disabled = busy; $('micLabel').textContent = 'Speak'; }
+      } catch (error) { liveActive = false; $('voiceStatus').textContent = error.message; voiceStatus(error.message); toast(error.message, true); }
+      finally { transcribing = false; $('micButton').disabled = busy; $('sendButton').disabled = busy; $('micLabel').textContent = 'Speak'; }
+      if (transcriptToSend && session === voiceSession) { $('voicePreview').classList.add('hidden'); await send(transcriptToSend, { voice: true, language: transcriptLanguage }); }
     };
-    await recorder.start(); $('micButton').disabled = false; $('microphone').disabled = true; $('sendButton').disabled = true; $('micButton').classList.add('recording'); $('micLabel').textContent = 'Stop'; $('micButton').setAttribute('aria-label', 'Stop recording'); $('recordTime').textContent = '0:00';
+    await recorder.start(); voiceStatus('Listening. Pause after speaking and I’ll reply.'); $('micButton').disabled = false; $('microphone').disabled = true; $('sendButton').disabled = true; $('micButton').classList.add('recording'); $('micLabel').textContent = 'Stop'; $('micButton').setAttribute('aria-label', 'Stop recording'); $('recordTime').textContent = '0:00';
     recordTimer = setInterval(() => {
       recordingSeconds++; $('recordTime').textContent = `0:${String(recordingSeconds).padStart(2, '0')}`;
       if (recordingSeconds >= 28 && recorder.state === 'recording') recorder.stop();
     }, 1000);
     toast('Listening. Speak in Telugu, English, or mix both.');
   } catch (error) {
+    liveActive = false;
     await recorder?.cancel(); stream?.getTracks().forEach(track => track.stop());
     $('micButton').disabled = false; $('sendButton').disabled = busy; $('microphone').disabled = false;
     toast(error.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow this site to use your microphone, or open the app in Chrome or Edge.' : error.message, true);
