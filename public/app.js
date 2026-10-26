@@ -148,7 +148,9 @@ $('micButton').onclick = async () => {
       $('micButton').classList.remove('recording'); $('micLabel').textContent = 'Transcribing…'; $('micButton').disabled = true; $('recordTime').textContent = '';
       $('micButton').setAttribute('aria-label', 'Start recording');
       try {
-        const result = await api(`/api/transcribe?language=${encodeURIComponent($('language').value)}`, new Blob(chunks, { type: recorder.mimeType }), recorder.mimeType);
+        // Sarvam accepts the container MIME type without MediaRecorder's codec suffix.
+        const uploadType = (recorder.mimeType || chunks[0]?.type || 'audio/webm').split(';')[0].trim();
+        const result = await api(`/api/transcribe?language=${encodeURIComponent($('language').value)}`, new Blob(chunks, { type: uploadType }), uploadType);
         $('message').value = [$('message').value, result.transcript].filter(Boolean).join(' ');
         $('message').focus(); toast('Your words, ready to review. Press ↑ to send.');
       } catch (error) { toast(error.message, true); }

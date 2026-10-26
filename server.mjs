@@ -46,6 +46,7 @@ async function body(req, limit = 300_000) {
 }
 async function requestJson(req) { return JSON.parse((await body(req)).toString()); }
 function safeError(error) {
+  if (error.statusCode === 400 && /invalid file type/i.test(error.message || '')) return 'The recording format was rejected. Refresh this page and record again.';
   if (error.statusCode === 402) return 'Sarvam credits are exhausted. Add credits to your Sarvam account.';
   if ([401, 403].includes(error.statusCode)) return 'API authentication failed. Check the credentials in .env.';
   if (error.statusCode === 429) return 'Sarvam is rate limiting requests. Please try again shortly.';
@@ -134,7 +135,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && staticFiles[url.pathname]) {
       const [path, type] = staticFiles[url.pathname];
-      res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8` });
+      res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8`, 'Cache-Control': 'no-store' });
       return res.end(await readFile(new URL(path, root)));
     }
     if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, publicState());
